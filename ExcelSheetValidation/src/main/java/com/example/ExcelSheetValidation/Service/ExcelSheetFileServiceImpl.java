@@ -12,21 +12,31 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
 
 
 @Service
+@Component
+@EnableScheduling
+//@Configuration(value = "classPath:application.properties")
 public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
     private static final Logger logger = LogManager.getLogger(ExcelSheetFileController.class);
+
+//    @Value("${filepath.location}")
+//    public String path;
 
     @Autowired
     private ExcelSheetFileRepository excelSheetFileRepository;
@@ -36,6 +46,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
     /**
      * Adds a comment to the specified cell in the given sheet.
+     *
      * @param sheet    The sheet to which the comment will be added.
      * @param cell     The cell to which the comment will be associated.
      * @param workbook The workbook to which the sheet belongs.
@@ -50,7 +61,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
             anchor.setRow1(cell.getRowIndex());
             anchor.setRow2(cell.getRowIndex() + 1);
             Comment comment = drawing.createCellComment(anchor);
-            String commentText ;
+            String commentText;
             switch (cell.getColumnIndex()) {
                 case 0:
                     commentText = "Name should be in alphabet only";
@@ -81,7 +92,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * fileType :The type of the Excel file (e.g., SCHOOL_STUDENT, etc.).
      * IOException :If an I/O error occurs.
      */
-    @Override
+    @Scheduled(fixedDelay = 200000) @Override
     public void processExcelFile(MultipartFile file, FileType fileType) throws IOException, InvalidExcelFileException {
         // Check if the uploaded file is an Excel file
         if (!isExcelFile(file)) {
@@ -120,7 +131,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
         excelSheetFile.setFileName(file.getOriginalFilename());
         excelSheetFile.setFileType(fileType);
         if (flag) {
-            excelSheetFile.setStatus(FileStatus.UPLOADED);
+            excelSheetFile.setStatus(FileStatus.VALID);
             String filePath = "/home/perennial/ExcelSheets/valid Files" + file.getOriginalFilename();
             excelSheetFile.setFilePath(filePath);
         } else {
@@ -157,6 +168,38 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
     }
 
+    //-------------------------------------------
+    @Override
+    public void processExcelFileByMetaDataOfFile(ExcelSheetFile excelSheetFile) throws IOException, InvalidExcelFileException {
+
+        String filePath = excelSheetFile.getFilePath();
+        File file = new File(filePath);
+        FileType fileType = excelSheetFile.getFileType();
+        MultipartFile multipartFile = convertFileToMultipartFile(file);
+        if (!isExcelFile(multipartFile)) {
+            throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
+        }
+
+        validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
+    }
+    //-----------------------------------------
+
+    private MultipartFile convertFileToMultipartFile(File file) throws IOException {
+        // Read the file into an InputStream
+        InputStream inputStream = new FileInputStream(file);
+
+        // Create an InputStreamResource from the InputStream
+        InputStreamResource inputStreamResource = new InputStreamResource(inputStream);
+
+        // Create HttpHeaders and set content type
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("file", file.getName());
+
+        // Create the MultipartFile object
+        return new org.springframework.mock.web.MockMultipartFile("file", file.getName(), MediaType.APPLICATION_OCTET_STREAM_VALUE, inputStreamResource.getInputStream());
+    }
+
     // Create invalid cell style
     private CellStyle createInvalidCellStyle(Workbook workbook) {
         CellStyle invalidCellStyle = workbook.createCellStyle();
@@ -178,6 +221,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
     private boolean validateHeadersAndData(Row copyheaderRow, Workbook workbook, FileType fileType, Sheet copySheet) throws IOException {
 
         List<ExcelFileValidationConfig> validationConfigs = excelFileValidationConfigRepo.findByFileType(String.valueOf(fileType));
+        boolean invalidCell = false;
 
         int count = 0;
 
@@ -238,18 +282,21 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
                 // Perform regex validation using config.getRegex() on cellValue
                 if (!cellValue.matches(config.getRegex())) {
+                    invalidCell = true;
                     // Handle invalid cell value according to your requirements
 //                    throw new IllegalArgumentException("Invalid value '" + cellValue + "' for header '" + headerName + "'");
                     dataCell.setCellStyle(invalidCellStyle);
                     // Save the copy workbook with highlighted cells to a specific path
-                    String copyFilePath = "/home/perennial/ExcelSheets/invalid files/copyFile.xlsx";
+                    String copyFilePath = "/home/perennial/ExcelSheets/invalid files/invalidCopyFile.xlsx";
                     FileOutputStream outputStream = new FileOutputStream(copyFilePath);
                     workbook.write(outputStream);
                     count++;
                 } else {
-                    String copyFilePath = "/home/perennial/ExcelSheets/valid Files/copyFile.xlsx";
-                    FileOutputStream outputStream = new FileOutputStream(copyFilePath);
-                    workbook.write(outputStream);
+                    if (!invalidCell) {
+                        String copyFilePath = "/home/perennial/ExcelSheets/valid Files/validCopyFile.xlsx";
+                        FileOutputStream outputStream = new FileOutputStream(copyFilePath);
+                        workbook.write(outputStream);
+                    }
                 }
             }
         }

@@ -1,5 +1,8 @@
 package com.example.StudentFeeTransactionWithExcelSheets.service;
 
+import com.example.StudentFeeTransactionWithExcelSheets.enums.FileStatus;
+import com.example.StudentFeeTransactionWithExcelSheets.enums.FileType;
+import com.example.StudentFeeTransactionWithExcelSheets.model.ExcelFileSheet;
 import com.example.StudentFeeTransactionWithExcelSheets.model.Student;
 import com.example.StudentFeeTransactionWithExcelSheets.repository.StudentRepository;
 import org.apache.log4j.LogManager;
@@ -10,9 +13,12 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -62,5 +68,27 @@ public class StudentServiceImpl implements IStudentService {
         }
 
 
+    }
+
+    @Override
+    public ExcelFileSheet setMetaDataOfFile(MultipartFile file, FileType fileType) throws IOException {
+        ExcelFileSheet excelFileSheet = new ExcelFileSheet();
+        excelFileSheet.setFileName(file.getOriginalFilename());
+        excelFileSheet.setDateTime(LocalDateTime.now());
+        excelFileSheet.setFileType(fileType);
+        excelFileSheet.setStatus(FileStatus.UPLOADED);
+        String filePath = saveUploadedFile(file);
+//        String filePath = "/home/perennial/ExcelSheets/uploadedFile" + file.getOriginalFilename();
+        excelFileSheet.setFilePath(filePath);
+        return excelFileSheet;
+    }
+
+    public String saveUploadedFile(MultipartFile file) throws IOException {
+        String uploadDirectory = "/home/perennial/ExcelSheets/uploadedFile"; // Specify the directory where you want to save the uploaded file
+        String fileName = file.getOriginalFilename();
+        String filePath = uploadDirectory + File.separator + fileName;
+        File dest = new File(filePath);
+        file.transferTo(dest);
+        return filePath;
     }
 }

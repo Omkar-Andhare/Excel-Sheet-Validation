@@ -1,8 +1,10 @@
 package com.example.ExcelSheetValidation.controller;
 
+import com.example.ExcelSheetValidation.Service.IExcelFileValidationConfigService;
 import com.example.ExcelSheetValidation.Service.IExcelSheetFileService;
 import com.example.ExcelSheetValidation.enums.FileType;
 import com.example.ExcelSheetValidation.exceptions.InvalidExcelFileException;
+import com.example.ExcelSheetValidation.model.ExcelSheetFile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,11 +23,11 @@ public class ExcelSheetFileController {
     private IExcelSheetFileService excelSheetFileService;
 
 
-//  @Autowired
-//  private IExcelFileValidationConfigService excelFileValidationConfigService;
+    @Autowired
+    private IExcelFileValidationConfigService excelFileValidationConfigService;
 
     @PostMapping("/validateExcel")
-    public ResponseEntity<String> uploadExcelFile(@RequestBody MultipartFile file, @RequestHeader FileType fileType) {
+    public ResponseEntity<String> uploadExcelFile(@RequestParam("file") MultipartFile file, @RequestHeader FileType fileType) {
 
 
         //its for only setting the excel cells regex and only for one call
@@ -35,13 +37,20 @@ public class ExcelSheetFileController {
             excelSheetFileService.processExcelFile(file, fileType);
             logger.info("File uploaded successfully.");
             return ResponseEntity.ok("File uploaded successfully.");
-        } catch (IOException e) {
+        } catch (IOException | InvalidExcelFileException e) {
             logger.error("Failed to upload file: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to upload file: " + e.getMessage());
-        } catch (InvalidExcelFileException e) {
-            throw new RuntimeException(e);
         }
+    }
+
+    //    -------------------------------------------------------------------------------------------------------
+    @PostMapping("/validateExcelByMetaData")
+    public ResponseEntity<String> uploadExcelFileNew(@RequestBody ExcelSheetFile excelSheetFile) throws InvalidExcelFileException, IOException {
+        excelSheetFileService.processExcelFileByMetaDataOfFile(excelSheetFile);
+
+
+        return ResponseEntity.ok("file validation completed");
     }
 
 

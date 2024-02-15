@@ -35,6 +35,8 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
     private static final Logger logger = LogManager.getLogger(ExcelSheetFileController.class);
 
+    private static final int BATCH_SIZE = 3;
+
 //    @Value("${filepath.location}")
 //    public String path;
 
@@ -92,7 +94,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * fileType :The type of the Excel file (e.g., SCHOOL_STUDENT, etc.).
      * IOException :If an I/O error occurs.
      */
-    @Scheduled(fixedDelay = 200000) @Override
+    @Override
     public void processExcelFile(MultipartFile file, FileType fileType) throws IOException, InvalidExcelFileException {
         // Check if the uploaded file is an Excel file
         if (!isExcelFile(file)) {
@@ -154,7 +156,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
     public boolean validateExcelFile(InputStream fileInputStream, FileType fileType) throws IOException {
         logger.info("Validating Excel file for file type: {}", fileType);
 
-//        List<ExcelFileValidationConfig> validationConfigs = excelFileValidationConfigRepo.findByFileType(String.valueOf(fileType));
+//      List<ExcelFileValidationConfig> validationConfigs = excelFileValidationConfigRepo.findByFileType(String.valueOf(fileType));
         Workbook workbook = WorkbookFactory.create(fileInputStream);
         Sheet sheet = workbook.getSheetAt(0);
         Row headerRow = sheet.getRow(0);
@@ -172,17 +174,60 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
     @Override
     public void processExcelFileByMetaDataOfFile(ExcelSheetFile excelSheetFile) throws IOException, InvalidExcelFileException {
 
-        String filePath = excelSheetFile.getFilePath();
-        File file = new File(filePath);
-        FileType fileType = excelSheetFile.getFileType();
-        MultipartFile multipartFile = convertFileToMultipartFile(file);
-        if (!isExcelFile(multipartFile)) {
-            throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
-        }
-
-        validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
+        excelSheetFileRepository.save(excelSheetFile);
+//        String filePath = excelSheetFile.getFilePath();
+//        File file = new File(filePath);
+//        FileType fileType = excelSheetFile.getFileType();
+//        MultipartFile multipartFile = convertFileToMultipartFile(file);
+//        if (!isExcelFile(multipartFile)) {
+//            throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
+//        }
+//
+//        validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
     }
     //-----------------------------------------
+
+    /**
+     * Process the uploaded Excel file, validate it, and save metadata accordingly.
+     * file     :The Excel file uploaded by the user.
+     * fileType :The type of the Excel file (e.g., SCHOOL_STUDENT, etc.).
+     * IOException :If an I/O error occurs.
+     */
+    @Scheduled(fixedDelay = 100000)
+    public void processScheduledExcelFile() throws IOException, InvalidExcelFileException {
+        // Assuming BATCH_SIZE is defined somewhere in your class.
+        List<ExcelSheetFile> filesToProcess = getUploadedFiles(BATCH_SIZE);
+
+
+        for (ExcelSheetFile excelSheetFile : filesToProcess) {
+
+            excelSheetFile.setStatus(FileStatus.INPROCESS);
+            excelSheetFileRepository.save(excelSheetFile);
+//            String filePath = excelSheetFile.getFilePath() + "/" + excelSheetFile.getFileName();
+            String filePath = excelSheetFile.getFilePath();
+
+            File file = new File(filePath);
+            FileType fileType = excelSheetFile.getFileType();
+
+            MultipartFile multipartFile = convertFileToMultipartFile(file);
+            if (!isExcelFile(multipartFile)) {
+                throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
+            }
+            validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
+        }
+    }
+
+    public List<ExcelSheetFile> getUploadedFiles(int BATCH_SIZE) {
+//        return excelSheetFileRepository.findByStatus(FileStatus.UPLOADED);
+        List<ExcelSheetFile> uploadedFiles = excelSheetFileRepository.findByStatus(FileStatus.UPLOADED);
+
+        // Limit the list size to the batch size
+        if (uploadedFiles.size() > BATCH_SIZE) {
+            return uploadedFiles.subList(0, BATCH_SIZE);
+        } else {
+            return uploadedFiles;
+        }
+    }
 
     private MultipartFile convertFileToMultipartFile(File file) throws IOException {
         // Read the file into an InputStream

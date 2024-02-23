@@ -66,8 +66,6 @@ public class StudentServiceImpl implements IStudentService {
             logger.error("Error creating sheet: " + e.getMessage());
             throw new RuntimeException(e);
         }
-
-
     }
 
     @Override
@@ -78,13 +76,16 @@ public class StudentServiceImpl implements IStudentService {
         excelFileSheet.setFileType(fileType);
         excelFileSheet.setStatus(FileStatus.UPLOADED);
         String filePath = saveUploadedFile(file);
-//        String filePath = "/home/perennial/ExcelSheets/uploadedFile" + file.getOriginalFilename();
+
+//      concatenation is not working i.e not storing the file in uploadedFile folder, created seperate method
+//      String filePath = "/home/perennial/ExcelSheets/uploadedFile/" + file.getOriginalFilename();
         excelFileSheet.setFilePath(filePath);
         return excelFileSheet;
     }
 
+
     public String saveUploadedFile(MultipartFile file) throws IOException {
-        String uploadDirectory = "/home/perennial/ExcelSheets/uploadedFile"; // Specify the directory where you want to save the uploaded file
+        String uploadDirectory = "/home/perennial/ExcelSheets/uploadedFile";
         String fileName = file.getOriginalFilename();
         String filePath = uploadDirectory + File.separator + fileName;
         File dest = new File(filePath);

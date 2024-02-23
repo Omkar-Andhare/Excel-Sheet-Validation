@@ -7,7 +7,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 public interface IStudentService {
-     void createSheet(String sheetName);
+    void createSheet(String sheetName);
 
-     ExcelFileSheet setMetaDataOfFile(MultipartFile file, FileType fileType) throws IOException;
+    ExcelFileSheet setMetaDataOfFile(MultipartFile file, FileType fileType) throws IOException;
+
 }

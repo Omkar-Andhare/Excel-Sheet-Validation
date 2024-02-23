@@ -110,7 +110,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
             throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
         }
         ExcelSheetFile excelSheetFile = new ExcelSheetFile();
-        validateAndSaveExcelFile(file, fileType, excelSheetFile);
+        String filePath = validateAndSaveExcelFile(file, fileType, excelSheetFile);
     }
 
     /**
@@ -121,11 +121,13 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * @param excelSheetFile The ExcelSheetFile object to save metadata.
      * @throws IOException If an I/O error occurs.
      */
-    private void validateAndSaveExcelFile(MultipartFile file, FileType fileType, ExcelSheetFile excelSheetFile) throws IOException {
+    private String validateAndSaveExcelFile(MultipartFile file, FileType fileType, ExcelSheetFile excelSheetFile) throws IOException {
         logger.info("Validating and saving Excel file: {}", file.getOriginalFilename());
 
         boolean flag = validateExcelFile(file.getInputStream(), fileType, file);
-        saveExcelFileMetadata(file, fileType, excelSheetFile, flag);
+        String filePath = saveExcelFileMetadata(file, fileType, excelSheetFile, flag);
+        return filePath;
+
     }
 
     /**
@@ -143,11 +145,11 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
         if (!flag) {
             excelSheetFile.setStatus(FileStatus.INVALID);
-            String filePath = "/home/perennial/ExcelSheets/valid Files" + file.getOriginalFilename();
+            String filePath = "/home/perennial/ExcelSheets/uploadedFile/" + file.getOriginalFilename();
             excelSheetFile.setFilePath(filePath);
         } else {
             excelSheetFile.setStatus(FileStatus.VALID);
-            String filePath = "/home/perennial/ExcelSheets/invalid files" + file.getOriginalFilename();
+            String filePath = "/home/perennial/ExcelSheets/uploadedFile/" + file.getOriginalFilename();
             excelSheetFile.setFilePath(filePath);
         }
         excelSheetFile.setDateTime(LocalDateTime.now());
@@ -199,7 +201,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * fileType :The type of the Excel file (e.g., SCHOOL_STUDENT, etc.).
      * IOException :If an I/O error occurs.
      */
-    @Scheduled(fixedDelay = 1000)
+//    @Scheduled(fixedDelay = 1000)
     public void processScheduledExcelFile() throws IOException, InvalidExcelFileException {
         List<ExcelSheetFile> filesToProcess = getUploadedFiles(BATCH_SIZE);
 

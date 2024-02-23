@@ -18,7 +18,7 @@ public class Student {
     private String email;
 
     @JsonIgnore
-    private List<TransactionDetails> transactionDetailsList;
+    private List<TransactionDetails> transactionDetailsList;  //not working with transaction
 
     public Student(String name, String phone_no, String email) {
         this.name = name;

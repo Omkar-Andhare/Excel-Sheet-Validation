@@ -12,6 +12,10 @@ public class ExcelFileSheet {
     private String fileName;
 
     private Long id;
+    private FileType fileType;
+    private FileStatus status;
+    private LocalDateTime dateTime;
+    private String filePath;
 
     public ExcelFileSheet(String fileName, Long id, FileType fileType, FileStatus status, LocalDateTime dateTime, String filePath) {
         this.fileName = fileName;
@@ -20,6 +24,15 @@ public class ExcelFileSheet {
         this.status = status;
         this.dateTime = dateTime;
         this.filePath = filePath;
+    }
+    public ExcelFileSheet(String fileName, FileType fileType, FileStatus status, LocalDateTime dateTime, String filePath) {
+        this.fileName = fileName;
+        this.fileType = fileType;
+        this.status = status;
+        this.dateTime = dateTime;
+        this.filePath = filePath;
+    }
+    public ExcelFileSheet() {
     }
 
     @Override
@@ -40,22 +53,6 @@ public class ExcelFileSheet {
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    private FileType fileType;
-    private FileStatus status;
-    private LocalDateTime dateTime;
-    private String filePath;
-
-    public ExcelFileSheet(String fileName, FileType fileType, FileStatus status, LocalDateTime dateTime, String filePath) {
-        this.fileName = fileName;
-        this.fileType = fileType;
-        this.status = status;
-        this.dateTime = dateTime;
-        this.filePath = filePath;
-    }
-
-    public ExcelFileSheet() {
     }
 
     public String getFileName() {

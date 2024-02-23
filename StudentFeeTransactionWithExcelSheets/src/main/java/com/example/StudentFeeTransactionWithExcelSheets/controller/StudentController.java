@@ -1,5 +1,6 @@
 package com.example.StudentFeeTransactionWithExcelSheets.controller;
 
+import com.example.StudentFeeTransactionWithExcelSheets.enums.FileStatus;
 import com.example.StudentFeeTransactionWithExcelSheets.enums.FileType;
 import com.example.StudentFeeTransactionWithExcelSheets.handler.StudentHandler;
 import com.example.StudentFeeTransactionWithExcelSheets.model.ExcelFileSheet;
@@ -23,12 +24,16 @@ public class StudentController {
 
     @Autowired
     ExcelFileSheetRepository excelFileSheetRepository;
+
     @Autowired
     private StudentRepository studentRepository;
+
     @Autowired
     private IStudentService studentService;
+
     @Autowired
     private StudentHandler studentHandler;
+
     @Autowired
     private RestTemplate restTemplate;
 
@@ -36,8 +41,7 @@ public class StudentController {
     @PostMapping("/add")
     public ResponseEntity<?> addStudent(@RequestBody Student student) {
         if (studentRepository.existsByEmail(student.getEmail())) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Email already exists");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email already exists");
         } else {
             // Save the student if the email doesn't exist
             studentRepository.save(student);
@@ -83,27 +87,41 @@ public class StudentController {
         }
     }
 
-
-
-
-
-
-
+    /**
+     * sending excel file meta data to excel file validation service for validation
+     *
+     * @param excelFile The Excel file to be uploaded.
+     * @param fileType  The type of the file (e.g.,SCHOOL_STUDENT, SCHOOL_TEACHER).
+     * @return A ResponseEntity with a success message if the file was uploaded successfully.
+     * @throws IOException If an I/O exception occurs.
+     */
     @PostMapping("/sendExcelInfo")
-    public void sendExcelInfo(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) throws IOException {
+    public ResponseEntity<String> sendExcelInfo(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) throws IOException {
 
         ExcelFileSheet excelFileSheetData = studentService.setMetaDataOfFile(excelFile, fileType);
         ExcelFileSheet excelFileSheet = restTemplate.postForEntity("http://localhost:8081/file/validateExcelByMetaData", excelFileSheetData, ExcelFileSheet.class).getBody();
         excelFileSheetRepository.save(excelFileSheet);
+        return ResponseEntity.ok("Excel file sheet uploaded successfully for validation");
 
     }
 
+    /**
+     * Updates the file path and stores data in the database if the file is valid.
+     *
+     * @param excelFileSheet The Excel file sheet containing metadata.
+     * @return A ResponseEntity with a success message if the data was stored successfully or a message indicating that the Excel file is invalid.
+     * @throws IOException If an I/O exception occurs.
+     */
     @PostMapping("/updateFilePath")
-    public void updateExcelFilePath(@RequestBody ExcelFileSheet excelFileSheet) {
+    public ResponseEntity<String> updateExcelFilePath(@RequestBody ExcelFileSheet excelFileSheet) throws IOException {
 
         excelFileSheetRepository.save(excelFileSheet);
-
+        if (excelFileSheet.getStatus() == FileStatus.VALID) {
+            String filePath = excelFileSheet.getFilePath();
+            studentHandler.storeDataFromFile(filePath);
+            return ResponseEntity.ok("Data of Excel file stored in DB successfully");
+        } else {
+            return ResponseEntity.ok("Excel file is invalid.");
+        }
     }
-
-
 }

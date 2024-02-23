@@ -27,11 +27,11 @@ public class StudentHandler {
      * @throws IOException If an I/O error occurs.
      */
     public List<Student> readDataFromSheet(InputStream inputStream) throws IOException {
+
         List<Student> students = new ArrayList<>();
+
         Workbook workbook = new XSSFWorkbook(inputStream);
-
         Sheet sheet = workbook.getSheetAt(0);
-
         Iterator<Row> rowIterator = sheet.iterator();
 
         // Skip the header row assuming it contains column names

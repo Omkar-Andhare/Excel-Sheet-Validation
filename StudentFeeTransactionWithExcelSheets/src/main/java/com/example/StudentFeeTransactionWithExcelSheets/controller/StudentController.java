@@ -4,6 +4,7 @@ import com.example.StudentFeeTransactionWithExcelSheets.enums.FileType;
 import com.example.StudentFeeTransactionWithExcelSheets.handler.StudentHandler;
 import com.example.StudentFeeTransactionWithExcelSheets.model.ExcelFileSheet;
 import com.example.StudentFeeTransactionWithExcelSheets.model.Student;
+import com.example.StudentFeeTransactionWithExcelSheets.repository.ExcelFileSheetRepository;
 import com.example.StudentFeeTransactionWithExcelSheets.repository.StudentRepository;
 import com.example.StudentFeeTransactionWithExcelSheets.service.IStudentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,9 @@ import java.util.List;
 public class StudentController {
 
     @Autowired
+    ExcelFileSheetRepository excelFileSheetRepository;
+    @Autowired
     private StudentRepository studentRepository;
-
     @Autowired
     private IStudentService studentService;
     @Autowired
@@ -81,54 +83,27 @@ public class StudentController {
         }
     }
 
-    @PostMapping("/sendExcel")
-    public ResponseEntity<String> sendExcel(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) {
-        ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/file/validateExcel", excelFile, String.class);
-        return response;
-    }
-//    ------------------------------------------------------------------
-
-//    @PostMapping("/sendExcel")
-//    public ResponseEntity<String> sendExcel(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) throws IOException {
-//        HttpHeaders headers = new HttpHeaders();
-//        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-//        MultiValueMap<String, Object> body
-//                = new LinkedMultiValueMap<>();
-//        body.add("file", excelFile.getBytes());
-//
-//        headers.set("FileType", fileType.toString()); // Add the FileType as a request header
-//
-//        // Create the request entity with the file and headers
-//        HttpEntity<Object> requestEntity = new HttpEntity<>(body, headers);
-//
-//        // Send the request to the validateExcel endpoint
-//        ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/file/validateExcel", requestEntity, String.class);
-//
-//        return response;
-//    }
-
-//    -------------------------------------------------------------------------------------------------------------
 
 
-//    @PostMapping("/sendExcel")
-//    public ResponseEntity<String> sendExcel(@RequestBody ExcelFileInfo excelFileInfo, @RequestHeader FileType fileType) {
-//        // Send Excel file info to the second service
-//        try {
-//            // You can also add more details like fileType to the ExcelFileInfo object
-//            ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/file/validateExcel", excelFileInfo, String.class);
-//            return response;
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to send Excel file info: " + e.getMessage());
-//        }
-//    }
+
+
+
 
     @PostMapping("/sendExcelInfo")
-    public ResponseEntity<String> sendExcelInfo(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) throws IOException {
+    public void sendExcelInfo(@RequestBody MultipartFile excelFile, @RequestHeader FileType fileType) throws IOException {
 
         ExcelFileSheet excelFileSheetData = studentService.setMetaDataOfFile(excelFile, fileType);
+        ExcelFileSheet excelFileSheet = restTemplate.postForEntity("http://localhost:8081/file/validateExcelByMetaData", excelFileSheetData, ExcelFileSheet.class).getBody();
+        excelFileSheetRepository.save(excelFileSheet);
 
-        ResponseEntity<String> response = restTemplate.postForEntity("http://localhost:8081/file/validateExcelByMetaData", excelFileSheetData, String.class);
-        return response;
     }
+
+    @PostMapping("/updateFilePath")
+    public void updateExcelFilePath(@RequestBody ExcelFileSheet excelFileSheet) {
+
+        excelFileSheetRepository.save(excelFileSheet);
+
+    }
+
 
 }

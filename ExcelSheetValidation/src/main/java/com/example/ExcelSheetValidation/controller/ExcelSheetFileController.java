@@ -1,7 +1,9 @@
 package com.example.ExcelSheetValidation.controller;
 
+import com.example.ExcelSheetValidation.Repository.ExcelSheetFileRepository;
 import com.example.ExcelSheetValidation.Service.IExcelFileValidationConfigService;
 import com.example.ExcelSheetValidation.Service.IExcelSheetFileService;
+import com.example.ExcelSheetValidation.enums.FileStatus;
 import com.example.ExcelSheetValidation.enums.FileType;
 import com.example.ExcelSheetValidation.exceptions.InvalidExcelFileException;
 import com.example.ExcelSheetValidation.model.ExcelSheetFile;
@@ -21,6 +23,9 @@ public class ExcelSheetFileController {
     private static final Logger logger = LogManager.getLogger(ExcelSheetFileController.class);
     @Autowired
     private IExcelSheetFileService excelSheetFileService;
+
+    @Autowired
+    private ExcelSheetFileRepository excelSheetFileRepository;
 
 
     @Autowired
@@ -46,12 +51,11 @@ public class ExcelSheetFileController {
 
     //    -------------------------------------------------------------------------------------------------------
     @PostMapping("/validateExcelByMetaData")
-    public ResponseEntity<String> uploadExcelFileNew(@RequestBody ExcelSheetFile excelSheetFile) throws InvalidExcelFileException, IOException {
-        excelSheetFileService.processExcelFileByMetaDataOfFile(excelSheetFile);
-
-
-        return ResponseEntity.ok("file validation completed");
+    public ExcelSheetFile uploadExcelFileNew(@RequestBody ExcelSheetFile excelSheetFile) throws InvalidExcelFileException, IOException {
+//        String file_path = excelSheetFileService.processExcelFileByMetaDataOfFile(excelSheetFile);
+        excelSheetFileRepository.save(excelSheetFile);
+        excelSheetFile.setStatus(FileStatus.INPROCESS);
+        return excelSheetFile;
     }
-
 
 }

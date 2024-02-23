@@ -8,6 +8,7 @@ import com.example.ExcelSheetValidation.enums.FileType;
 import com.example.ExcelSheetValidation.exceptions.InvalidExcelFileException;
 import com.example.ExcelSheetValidation.model.ExcelFileValidationConfig;
 import com.example.ExcelSheetValidation.model.ExcelSheetFile;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.poi.ss.usermodel.*;
@@ -15,16 +16,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 
 @Service
@@ -45,6 +50,10 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
     @Autowired
     private ExcelFileValidationConfigRepo excelFileValidationConfigRepo;
+
+
+    @Autowired
+    private RestTemplate restTemplate;
 
     /**
      * Adds a comment to the specified cell in the given sheet.
@@ -100,7 +109,6 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
         if (!isExcelFile(file)) {
             throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
         }
-
         ExcelSheetFile excelSheetFile = new ExcelSheetFile();
         validateAndSaveExcelFile(file, fileType, excelSheetFile);
     }
@@ -116,7 +124,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
     private void validateAndSaveExcelFile(MultipartFile file, FileType fileType, ExcelSheetFile excelSheetFile) throws IOException {
         logger.info("Validating and saving Excel file: {}", file.getOriginalFilename());
 
-        boolean flag = validateExcelFile(file.getInputStream(), fileType);
+        boolean flag = validateExcelFile(file.getInputStream(), fileType, file);
         saveExcelFileMetadata(file, fileType, excelSheetFile, flag);
     }
 
@@ -128,21 +136,35 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * @param excelSheetFile The ExcelSheetFile object to save metadata.
      * @param flag           The validation result indicating whether the file is valid.
      */
-    private void saveExcelFileMetadata(MultipartFile file, FileType fileType, ExcelSheetFile excelSheetFile, boolean flag) {
+    private String saveExcelFileMetadata(MultipartFile file, FileType fileType, ExcelSheetFile excelSheetFile, boolean flag) {
 
         excelSheetFile.setFileName(file.getOriginalFilename());
         excelSheetFile.setFileType(fileType);
-        if (flag) {
-            excelSheetFile.setStatus(FileStatus.VALID);
+
+        if (!flag) {
+            excelSheetFile.setStatus(FileStatus.INVALID);
             String filePath = "/home/perennial/ExcelSheets/valid Files" + file.getOriginalFilename();
             excelSheetFile.setFilePath(filePath);
         } else {
-            excelSheetFile.setStatus(FileStatus.INVALID);
+            excelSheetFile.setStatus(FileStatus.VALID);
             String filePath = "/home/perennial/ExcelSheets/invalid files" + file.getOriginalFilename();
             excelSheetFile.setFilePath(filePath);
         }
         excelSheetFile.setDateTime(LocalDateTime.now());
         excelSheetFileRepository.save(excelSheetFile);
+        return excelSheetFile.getFilePath();
+
+    }
+
+    private String generateUniqueFileName(String originalFileName) {
+        String baseName = FilenameUtils.getBaseName(originalFileName);
+
+        String extension = FilenameUtils.getExtension(originalFileName);
+
+        // Generate unique identifier (timestamp + random UUID)
+        String uniqueIdentifier = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + "_" + UUID.randomUUID().toString().substring(0, 8);
+
+        return baseName + "_" + uniqueIdentifier + "." + extension;
     }
 
     /**
@@ -153,7 +175,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * @return True if the file is valid, false otherwise.
      * @throws IOException If an I/O error occurs.
      */
-    public boolean validateExcelFile(InputStream fileInputStream, FileType fileType) throws IOException {
+    public boolean validateExcelFile(InputStream fileInputStream, FileType fileType, MultipartFile file) throws IOException {
         logger.info("Validating Excel file for file type: {}", fileType);
 
 //      List<ExcelFileValidationConfig> validationConfigs = excelFileValidationConfigRepo.findByFileType(String.valueOf(fileType));
@@ -165,27 +187,11 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
         Row copyheaderRow = copySheet.getRow(0);
 
 
-        boolean flag = validateHeadersAndData(copyheaderRow, workbook, fileType, copySheet);
+        boolean flag = validateHeadersAndData(copyheaderRow, workbook, fileType, copySheet, file);
         return flag;
 
     }
 
-    //-------------------------------------------
-    @Override
-    public void processExcelFileByMetaDataOfFile(ExcelSheetFile excelSheetFile) throws IOException, InvalidExcelFileException {
-
-        excelSheetFileRepository.save(excelSheetFile);
-//        String filePath = excelSheetFile.getFilePath();
-//        File file = new File(filePath);
-//        FileType fileType = excelSheetFile.getFileType();
-//        MultipartFile multipartFile = convertFileToMultipartFile(file);
-//        if (!isExcelFile(multipartFile)) {
-//            throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
-//        }
-//
-//        validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
-    }
-    //-----------------------------------------
 
     /**
      * Process the uploaded Excel file, validate it, and save metadata accordingly.
@@ -193,17 +199,14 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * fileType :The type of the Excel file (e.g., SCHOOL_STUDENT, etc.).
      * IOException :If an I/O error occurs.
      */
-    @Scheduled(fixedDelay = 100000)
+    @Scheduled(fixedDelay = 1000)
     public void processScheduledExcelFile() throws IOException, InvalidExcelFileException {
-        // Assuming BATCH_SIZE is defined somewhere in your class.
         List<ExcelSheetFile> filesToProcess = getUploadedFiles(BATCH_SIZE);
-
 
         for (ExcelSheetFile excelSheetFile : filesToProcess) {
 
             excelSheetFile.setStatus(FileStatus.INPROCESS);
             excelSheetFileRepository.save(excelSheetFile);
-//            String filePath = excelSheetFile.getFilePath() + "/" + excelSheetFile.getFileName();
             String filePath = excelSheetFile.getFilePath();
 
             File file = new File(filePath);
@@ -214,14 +217,17 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
                 throw new InvalidExcelFileException("Invalid file format. Please upload an Excel file.");
             }
             validateAndSaveExcelFile(multipartFile, fileType, excelSheetFile);
+
+            restTemplate.postForEntity("http://localhost:8080/student/updateFilePath", excelSheetFile, String.class);
+
+
         }
+
     }
 
     public List<ExcelSheetFile> getUploadedFiles(int BATCH_SIZE) {
-//        return excelSheetFileRepository.findByStatus(FileStatus.UPLOADED);
-        List<ExcelSheetFile> uploadedFiles = excelSheetFileRepository.findByStatus(FileStatus.UPLOADED);
 
-        // Limit the list size to the batch size
+        List<ExcelSheetFile> uploadedFiles = excelSheetFileRepository.findByStatus(FileStatus.UPLOADED);
         if (uploadedFiles.size() > BATCH_SIZE) {
             return uploadedFiles.subList(0, BATCH_SIZE);
         } else {
@@ -230,19 +236,14 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
     }
 
     private MultipartFile convertFileToMultipartFile(File file) throws IOException {
-        // Read the file into an InputStream
+
         InputStream inputStream = new FileInputStream(file);
-
-        // Create an InputStreamResource from the InputStream
         InputStreamResource inputStreamResource = new InputStreamResource(inputStream);
-
-        // Create HttpHeaders and set content type
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
         headers.setContentDispositionFormData("file", file.getName());
 
-        // Create the MultipartFile object
-        return new org.springframework.mock.web.MockMultipartFile("file", file.getName(), MediaType.APPLICATION_OCTET_STREAM_VALUE, inputStreamResource.getInputStream());
+        return new MockMultipartFile("file", file.getName(), MediaType.APPLICATION_OCTET_STREAM_VALUE, inputStreamResource.getInputStream());
     }
 
     // Create invalid cell style
@@ -263,7 +264,7 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
      * @return True if the file is valid, false otherwise.
      * @throws IOException If an I/O error occurs.
      */
-    private boolean validateHeadersAndData(Row copyheaderRow, Workbook workbook, FileType fileType, Sheet copySheet) throws IOException {
+    private boolean validateHeadersAndData(Row copyheaderRow, Workbook workbook, FileType fileType, Sheet copySheet, MultipartFile file) throws IOException {
 
         List<ExcelFileValidationConfig> validationConfigs = excelFileValidationConfigRepo.findByFileType(String.valueOf(fileType));
         boolean invalidCell = false;
@@ -273,13 +274,17 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
         // Traverse through each row and column for adding comments
         for (Row row : copySheet) {
             for (Cell cell : row) {
-                // Add comment to each cell
                 addCommentToCell(copySheet, cell, workbook);
             }
         }
 
         // Check if the headers in the Excel file match the headers specified in the database
         Iterator<Cell> headerCellIterator = copyheaderRow.cellIterator();
+
+        String uniqueFileName = generateUniqueFileName(file.getOriginalFilename());
+        String validFilePath = "/home/perennial/ExcelSheets/valid Files/" + uniqueFileName;
+        String invalidFilePath = "/home/perennial/ExcelSheets/invalid files/" + uniqueFileName;
+
         while (headerCellIterator.hasNext()) {
             Cell headerCell = headerCellIterator.next();
             String headerName = headerCell.getStringCellValue();
@@ -290,28 +295,26 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
                     break;
                 }
             }
-
             if (config == null) {
 
                 logger.error("Header '{}' does not match configured headers for file type '{}'", headerName, fileType);
-
-                // Handle case where header doesn't match any configured header
                 throw new IllegalArgumentException("Header '" + headerName + "' does not match configured headers for file type '" + fileType + "'");
             }
+
 
             // Apply regex validation for each header's cell
             int columnIndex = headerCell.getColumnIndex();
             Iterator<Row> rowIterator = copySheet.iterator();
             rowIterator.next(); // Skip header row
+
+
             while (rowIterator.hasNext()) {
                 Row dataRow = rowIterator.next();
 
                 // Iterate over the cells of the row
                 Cell dataCell = dataRow.getCell(columnIndex);
 
-                // Check if the cell is null (empty cell)
                 if (dataCell == null) {
-                    // Skip validation for empty cells
                     continue;
                 }
 
@@ -325,34 +328,30 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
 
                 CellStyle invalidCellStyle = createInvalidCellStyle(workbook);
 
-                // Perform regex validation using config.getRegex() on cellValue
+                //  regex validation using config.getRegex() on cellValue
                 if (!cellValue.matches(config.getRegex())) {
                     invalidCell = true;
-                    // Handle invalid cell value according to your requirements
 //                    throw new IllegalArgumentException("Invalid value '" + cellValue + "' for header '" + headerName + "'");
                     dataCell.setCellStyle(invalidCellStyle);
-                    // Save the copy workbook with highlighted cells to a specific path
-                    String copyFilePath = "/home/perennial/ExcelSheets/invalid files/invalidCopyFile.xlsx";
-                    FileOutputStream outputStream = new FileOutputStream(copyFilePath);
-                    workbook.write(outputStream);
                     count++;
-                } else {
-                    if (!invalidCell) {
-                        String copyFilePath = "/home/perennial/ExcelSheets/valid Files/validCopyFile.xlsx";
-                        FileOutputStream outputStream = new FileOutputStream(copyFilePath);
-                        workbook.write(outputStream);
-                    }
                 }
             }
+        }
+
+        if (invalidCell) {
+            FileOutputStream invalidOutputStream = new FileOutputStream(invalidFilePath);
+            workbook.write(invalidOutputStream);
+        } else {
+            FileOutputStream validOutputStream = new FileOutputStream(validFilePath);
+            workbook.write(validOutputStream);
         }
 
         //this is for updating status if file like UPLOADED, INVALID
         //it counts the invalid cell's regex if it >0 then status will set INVALID
         if (count > 0) return false;
         else return true;
-
-
     }
+
 
     /**
      * Checks if the uploaded file is an Excel file (XLSX format).
@@ -365,7 +364,6 @@ public class ExcelSheetFileServiceImpl implements IExcelSheetFileService {
         String fileName = file.getOriginalFilename();
         if (fileName != null && !fileName.isEmpty()) {
             String fileExtension = fileName.substring(fileName.lastIndexOf(".") + 1);
-            // Check if the file extension is XLSX (Excel)
             return "xlsx".equalsIgnoreCase(fileExtension);
         }
         return false;

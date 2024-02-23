@@ -2,12 +2,45 @@ package com.example.StudentFeeTransactionWithExcelSheets.model;
 
 import com.example.StudentFeeTransactionWithExcelSheets.enums.FileStatus;
 import com.example.StudentFeeTransactionWithExcelSheets.enums.FileType;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
+@Document(collection = "excelfiles")
 public class ExcelFileSheet {
 
     private String fileName;
+
+    private Long id;
+
+    public ExcelFileSheet(String fileName, Long id, FileType fileType, FileStatus status, LocalDateTime dateTime, String filePath) {
+        this.fileName = fileName;
+        this.id = id;
+        this.fileType = fileType;
+        this.status = status;
+        this.dateTime = dateTime;
+        this.filePath = filePath;
+    }
+
+    @Override
+    public String toString() {
+        return "ExcelFileSheet{" +
+                "fileName='" + fileName + '\'' +
+                ", id=" + id +
+                ", fileType=" + fileType +
+                ", status=" + status +
+                ", dateTime=" + dateTime +
+                ", filePath='" + filePath + '\'' +
+                '}';
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     private FileType fileType;
     private FileStatus status;
@@ -23,17 +56,6 @@ public class ExcelFileSheet {
     }
 
     public ExcelFileSheet() {
-    }
-
-    @Override
-    public String toString() {
-        return "ExcelFileSheet{" +
-                "fileName='" + fileName + '\'' +
-                ", fileType=" + fileType +
-                ", status=" + status +
-                ", dateTime=" + dateTime +
-                ", filePath='" + filePath + '\'' +
-                '}';
     }
 
     public String getFileName() {

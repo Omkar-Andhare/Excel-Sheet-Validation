@@ -2,6 +2,6 @@ package com.example.StudentFeeTransactionWithExcelSheets.enums;
 
 public enum FileStatus {
 
-    UPLOADED
+    UPLOADED,VALID,INVALID,INPROCESS
 
 }
